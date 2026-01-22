@@ -7,10 +7,11 @@ mod hotkey;
 mod ipc;
 mod learning;
 mod menu_bar;
+mod notifications;
 mod preferences;
 mod screenshot;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use cli::Cli;
 use config::Config;
@@ -96,6 +97,7 @@ fn main() -> Result<()> {
                                 let api_key_for_execute = api_key_clone.clone();
                                 let on_execute = move |command: String| {
                                     tracing::info!("Received execute command via IPC: {}", command);
+                                    let _ = notifications::notify_command_received(&command);
                                     let mut gui_state = state_for_execute.lock().unwrap();
                                     gui_state
                                         .update_status(gui::AppState::Working(command.clone()));
@@ -134,11 +136,13 @@ fn main() -> Result<()> {
                                             match agent.execute_command(&command).await {
                                                 Ok(result) => {
                                                     tracing::info!("Command completed: {}", result);
+                                                    let _ = notifications::notify_command_completed(&command);
                                                     let mut gui_state = state_for_task.lock().unwrap();
                                                     gui_state.update_status(gui::AppState::Idle);
                                                 }
                                                 Err(e) => {
                                                     tracing::error!("Command failed: {}", e);
+                                                    let _ = notifications::notify_command_failed(&command, &e.to_string());
                                                     let mut gui_state = state_for_task.lock().unwrap();
                                                     gui_state.update_status(gui::AppState::Error(
                                                         format!("Command failed: {}", e),
@@ -209,16 +213,77 @@ fn main() -> Result<()> {
                                 let learning_collector_for_finish = learning_collector_clone.clone();
                                 let api_key_for_finish = api_key_clone.clone();
                                 let system_prompt_path_for_finish = system_prompt_path_clone.clone();
-                                let handle = tokio::runtime::Handle::current();
-                                let on_learn_finish = move || {
+                                let on_learn_finish = async move {
                                     tracing::info!("Received learn finish command via IPC");
                                     match learning_collector_for_finish.as_ref() {
                                         Some(collector) => {
-                                            let c = collector.lock().unwrap();
+                                            let api_key = api_key_for_finish.clone();
                                             let path = system_prompt_path_for_finish.clone();
-                                            handle.block_on(async {
-                                                c.generate_system_prompt(&api_key_for_finish, path).await
-                                            }).map(|_| ())
+                                            let database = {
+                                                let c = collector.lock().unwrap();
+                                                c.database().clone()
+                                            };
+                                            let summary = {
+                                                let db = database.lock().unwrap();
+                                                db.aggregate_data()
+                                            }?;
+                                            
+                                            let prompt_text = format!(
+                                                "Analyze this workflow data and create a system prompt (max 2000 words) describing this user's working style, applications, patterns, and habits. Format as a system prompt for an AI assistant.\n\n{}",
+                                                summary
+                                            );
+
+                                            let client = reqwest::Client::builder()
+                                                .timeout(std::time::Duration::from_secs(30))
+                                                .build()
+                                                .context("Failed to create HTTP client")?;
+                                            
+                                            let request_body = serde_json::json!({
+                                                "model": "claude-sonnet-4-20250514",
+                                                "max_tokens": 4096,
+                                                "messages": [{
+                                                    "role": "user",
+                                                    "content": prompt_text
+                                                }]
+                                            });
+
+                                            let response = client
+                                                .post("https://api.anthropic.com/v1/messages")
+                                                .header("x-api-key", &api_key)
+                                                .header("anthropic-version", "2023-06-01")
+                                                .header("content-type", "application/json")
+                                                .json(&request_body)
+                                                .send()
+                                                .await
+                                                .context("Failed to call Anthropic API")?;
+
+                                            if !response.status().is_success() {
+                                                let status = response.status();
+                                                let error_text = response.text().await.unwrap_or_default();
+                                                anyhow::bail!("Anthropic API returned error: {} - {}", status, error_text);
+                                            }
+
+                                            let response_json: serde_json::Value = response
+                                                .json()
+                                                .await
+                                                .context("Failed to parse Anthropic response")?;
+
+                                            let generated_text = response_json["content"]
+                                                .as_array()
+                                                .and_then(|arr| arr.first())
+                                                .and_then(|block| block["text"].as_str())
+                                                .context("Failed to extract text from Anthropic response")?;
+
+                                            if let Some(parent) = path.parent() {
+                                                std::fs::create_dir_all(parent).context("Failed to create system prompt directory")?;
+                                            }
+
+                                            std::fs::write(&path, generated_text)
+                                                .with_context(|| format!("Failed to write system prompt to {:?}", path))?;
+
+                                            tracing::info!("System prompt saved to {:?}", path);
+
+                                            Ok(())
                                         }
                                         None => anyhow::bail!("Learning feature is disabled"),
                                     }
@@ -294,6 +359,7 @@ fn main() -> Result<()> {
         std::thread::spawn(move || loop {
             if stop_flag.load(std::sync::atomic::Ordering::Acquire) {
                 tracing::info!("🛑 Emergency stop triggered via hotkey");
+                let _ = notifications::notify_emergency_stop();
                 let mut gui_state = state_for_listener.lock().unwrap();
                 gui_state.update_status(gui::AppState::Idle);
                 drop(gui_state);

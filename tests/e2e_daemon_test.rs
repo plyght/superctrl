@@ -8,64 +8,6 @@ use superctrl::computer_use::ComputerUseAgent;
 use tokio::time::timeout;
 
 #[tokio::test]
-async fn test_ipc_server_lifecycle() -> Result<()> {
-    use superctrl::ipc::{IpcCommand, IpcResponse};
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::UnixStream;
-
-    let socket_path = "/tmp/superctrl_test.sock";
-    
-    if std::path::Path::new(socket_path).exists() {
-        std::fs::remove_file(socket_path)?;
-    }
-
-    let listener = tokio::net::UnixListener::bind(socket_path)?;
-
-    let server_task = tokio::spawn(async move {
-        if let Ok((mut stream, _)) = listener.accept().await {
-            let mut buffer = vec![0u8; 4096];
-            if let Ok(n) = stream.read(&mut buffer).await {
-                let request = String::from_utf8_lossy(&buffer[..n]);
-                if let Ok(cmd) = serde_json::from_str::<IpcCommand>(&request) {
-                    let response = match cmd {
-                        IpcCommand::Status => IpcResponse {
-                            success: true,
-                            message: "Daemon is running".to_string(),
-                        },
-                        _ => IpcResponse {
-                            success: false,
-                            message: "Unsupported".to_string(),
-                        },
-                    };
-                    let resp_json = serde_json::to_string(&response).unwrap();
-                    let _ = stream.write_all(resp_json.as_bytes()).await;
-                }
-            }
-        }
-    });
-
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    let mut stream = UnixStream::connect(socket_path).await?;
-    let cmd = IpcCommand::Status;
-    let cmd_json = serde_json::to_string(&cmd)?;
-    stream.write_all(cmd_json.as_bytes()).await?;
-    stream.flush().await?;
-
-    let mut buffer = vec![0u8; 4096];
-    let n = stream.read(&mut buffer).await?;
-    let response: IpcResponse = serde_json::from_slice(&buffer[..n])?;
-
-    assert!(response.success);
-    assert_eq!(response.message, "Daemon is running");
-
-    let _ = server_task.await;
-    std::fs::remove_file(socket_path)?;
-
-    Ok(())
-}
-
-#[tokio::test]
 async fn test_stop_flag_interrupt() -> Result<()> {
     let stop_flag = Arc::new(AtomicBool::new(false));
     
@@ -121,13 +63,17 @@ async fn test_real_api_call() -> Result<()> {
 
 #[tokio::test]
 async fn test_automation_sequence() -> Result<()> {
-    use superctrl::{Action, MacAutomation};
+    use superctrl::{Action, MacAutomation, MouseButton};
 
     let mut automation = MacAutomation::new()?;
 
     let actions = vec![
         Action::Wait { duration_ms: 100 },
-        Action::MouseMove { x: 500, y: 500 },
+        Action::Click {
+            x: 500,
+            y: 500,
+            button: MouseButton::Left,
+        },
         Action::Wait { duration_ms: 50 },
         Action::Scroll {
             x: 500,

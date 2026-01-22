@@ -83,12 +83,12 @@ impl MenuBar {
 
     fn create_icon_data(state: &AppState) -> tray_icon::Icon {
         let (r, g, b) = match state {
-            AppState::Idle => (128, 128, 128),
+            AppState::Idle => (255, 255, 255),
             AppState::Working(_) => (0, 122, 255),
             AppState::Error(_) => (255, 59, 48),
         };
 
-        let size = 32;
+        let size = 22;
         let mut rgba = Vec::with_capacity(size * size * 4);
 
         for y in 0..size {
@@ -96,19 +96,24 @@ impl MenuBar {
                 let dx = x as f32 - size as f32 / 2.0;
                 let dy = y as f32 - size as f32 / 2.0;
                 let distance = (dx * dx + dy * dy).sqrt();
-                let radius = size as f32 / 2.0 - 4.0;
+                let radius = size as f32 / 2.0 - 2.0;
 
-                let alpha = if distance <= radius {
-                    255
-                } else if distance <= radius + 2.0 {
-                    ((radius + 2.0 - distance) * 127.5) as u8
+                let in_circle = distance <= radius;
+                let in_inner = distance <= radius - 3.0;
+
+                let (pixel_r, pixel_g, pixel_b, alpha) = if in_inner {
+                    (0, 0, 0, 0)
+                } else if in_circle {
+                    (r, g, b, 255)
+                } else if distance <= radius + 1.0 {
+                    (r, g, b, ((radius + 1.0 - distance) * 255.0) as u8)
                 } else {
-                    0
+                    (0, 0, 0, 0)
                 };
 
-                rgba.push(r);
-                rgba.push(g);
-                rgba.push(b);
+                rgba.push(pixel_r);
+                rgba.push(pixel_g);
+                rgba.push(pixel_b);
                 rgba.push(alpha);
             }
         }
@@ -197,11 +202,10 @@ pub enum MenuBarEvent {
 
 pub fn run_menu_bar_loop(state: SharedGuiState) -> Result<()> {
     let mut menu_bar = MenuBar::new(state.clone())?;
-    let rt_handle = tokio::runtime::Handle::try_current()
-        .unwrap_or_else(|_| {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.handle().clone()
-        });
+    let rt_handle = tokio::runtime::Handle::try_current().unwrap_or_else(|_| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.handle().clone()
+    });
 
     loop {
         if let Some(event) = menu_bar.handle_events() {

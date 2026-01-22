@@ -293,6 +293,8 @@ pub struct LearningCollector {
     database: Arc<Mutex<LearningDatabase>>,
     state: LearningState,
     stop_flag: Arc<AtomicBool>,
+    disable_clipboard_monitoring: bool,
+    keyboard_thread_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 impl LearningCollector {
@@ -301,15 +303,27 @@ impl LearningCollector {
             database: Arc::new(Mutex::new(database)),
             state: LearningState::Stopped,
             stop_flag,
+            disable_clipboard_monitoring: false,
+            keyboard_thread_handle: None,
         }
     }
 
     pub fn with_path(path: PathBuf, stop_flag: Arc<AtomicBool>) -> Result<Self> {
+        Self::with_path_and_clipboard_setting(path, stop_flag, false)
+    }
+
+    pub fn with_path_and_clipboard_setting(
+        path: PathBuf,
+        stop_flag: Arc<AtomicBool>,
+        disable_clipboard_monitoring: bool,
+    ) -> Result<Self> {
         let database = LearningDatabase::new(path)?;
         Ok(Self {
             database: Arc::new(Mutex::new(database)),
             state: LearningState::Stopped,
             stop_flag,
+            disable_clipboard_monitoring,
+            keyboard_thread_handle: None,
         })
     }
 
@@ -318,20 +332,31 @@ impl LearningCollector {
             anyhow::bail!("Learning collector is already active");
         }
 
+        if self.keyboard_thread_handle.is_some() {
+            anyhow::bail!("Keyboard monitor thread already exists");
+        }
+
         self.stop_flag.store(false, Ordering::Release);
         self.state = LearningState::Active;
 
         let db_for_keyboard = self.database.clone();
         let stop_flag_for_keyboard = self.stop_flag.clone();
-        std::thread::spawn(move || {
+        let keyboard_handle = std::thread::spawn(move || {
             Self::keyboard_monitor(db_for_keyboard, stop_flag_for_keyboard);
         });
+        self.keyboard_thread_handle = Some(keyboard_handle);
 
-        let db_for_clipboard = self.database.clone();
-        let stop_flag_for_clipboard = self.stop_flag.clone();
-        std::thread::spawn(move || {
-            Self::clipboard_monitor(db_for_clipboard, stop_flag_for_clipboard);
-        });
+        if !self.disable_clipboard_monitoring {
+            tracing::warn!("⚠️  Clipboard monitoring is ENABLED. Clipboard content previews will be stored in the learning database.");
+            tracing::warn!("   To disable for privacy, set SUPERCTRL_DISABLE_CLIPBOARD_MONITORING=true");
+            let db_for_clipboard = self.database.clone();
+            let stop_flag_for_clipboard = self.stop_flag.clone();
+            std::thread::spawn(move || {
+                Self::clipboard_monitor(db_for_clipboard, stop_flag_for_clipboard);
+            });
+        } else {
+            tracing::info!("Clipboard monitoring is disabled for privacy");
+        }
 
         Ok(())
     }
@@ -399,13 +424,14 @@ impl LearningCollector {
                 Ok(content) => {
                     if content != last_content && !content.is_empty() {
                         let content_type = "text";
+                        let char_count = content.chars().count();
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        content.hash(&mut hasher);
+                        let hash = hasher.finish();
 
-                        let content_preview = if content.len() > 50 {
-                            let preview: String = content.chars().take(50).collect();
-                            format!("{}... ({} chars)", preview, content.len())
-                        } else {
-                            format!("{} ({} chars)", content, content.len())
-                        };
+                        let content_preview = format!("[REDACTED] ({} chars, hash: {:x})", char_count, hash);
 
                         let event = Event::ClipboardChange {
                             content_type: content_type.to_string(),
@@ -442,6 +468,12 @@ impl LearningCollector {
         self.stop_flag.store(true, Ordering::Release);
         self.state = LearningState::Stopped;
 
+        if let Some(handle) = self.keyboard_thread_handle.take() {
+            if let Err(e) = handle.join() {
+                tracing::error!("Error joining keyboard monitor thread: {:?}", e);
+            }
+        }
+
         Ok(())
     }
 
@@ -469,7 +501,7 @@ impl LearningCollector {
         );
 
         let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60))
+            .timeout(Duration::from_secs(30))
             .build()
             .context("Failed to create HTTP client")?;
         

@@ -77,16 +77,19 @@ impl IpcServer {
         Ok(stream)
     }
 
-    pub async fn handle_connection(
+    pub async fn handle_connection<F>(
         mut stream: UnixStream,
         on_execute: impl Fn(String) -> Result<()>,
         on_stop: impl Fn() -> Result<()>,
         on_learn_start: impl Fn() -> Result<()>,
         on_learn_stop: impl Fn() -> Result<()>,
         on_learn_status: impl Fn() -> Result<String>,
-        on_learn_finish: impl Fn() -> Result<()>,
+        on_learn_finish: F,
         on_learn_clear: impl Fn() -> Result<()>,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        F: std::future::Future<Output = Result<()>> + Send,
+    {
         let mut buffer = vec![0u8; 4096];
         let n = stream.read(&mut buffer).await?;
 
@@ -95,7 +98,7 @@ impl IpcServer {
         }
 
         let request = String::from_utf8_lossy(&buffer[..n]);
-        let response = Self::process_command(&request, on_execute, on_stop, on_learn_start, on_learn_stop, on_learn_status, on_learn_finish, on_learn_clear);
+        let response = Self::process_command_async(&request, on_execute, on_stop, on_learn_start, on_learn_stop, on_learn_status, on_learn_finish, on_learn_clear).await;
 
         let response_json = serde_json::to_string(&response)?;
         stream.write_all(response_json.as_bytes()).await?;
@@ -104,16 +107,19 @@ impl IpcServer {
         Ok(())
     }
 
-    fn process_command(
+    async fn process_command_async<F>(
         request: &str,
         on_execute: impl Fn(String) -> Result<()>,
         on_stop: impl Fn() -> Result<()>,
         on_learn_start: impl Fn() -> Result<()>,
         on_learn_stop: impl Fn() -> Result<()>,
         on_learn_status: impl Fn() -> Result<String>,
-        on_learn_finish: impl Fn() -> Result<()>,
+        mut on_learn_finish: F,
         on_learn_clear: impl Fn() -> Result<()>,
-    ) -> IpcResponse {
+    ) -> IpcResponse
+    where
+        F: std::future::Future<Output = Result<()>> + Send,
+    {
         let command: Result<IpcCommand, _> = serde_json::from_str(request);
 
         match command {
@@ -138,7 +144,7 @@ impl IpcServer {
                 Ok(status) => IpcResponse::success(status),
                 Err(e) => IpcResponse::error(format!("Failed to get learning status: {}", e)),
             },
-            Ok(IpcCommand::LearnFinish) => match on_learn_finish() {
+            Ok(IpcCommand::LearnFinish) => match on_learn_finish.await {
                 Ok(_) => IpcResponse::success("Learning session finished"),
                 Err(e) => IpcResponse::error(format!("Failed to finish learning: {}", e)),
             },

@@ -8,6 +8,7 @@ pub struct Config {
     pub learning_enabled: bool,
     pub learning_db_path: PathBuf,
     pub system_prompt_path: PathBuf,
+    pub disable_clipboard_monitoring: bool,
 }
 
 impl Config {
@@ -23,6 +24,10 @@ impl Config {
             .map(|v| v.to_lowercase() == "true" || v == "1")
             .unwrap_or(true);
 
+        let disable_clipboard_monitoring = std::env::var("SUPERCTRL_DISABLE_CLIPBOARD_MONITORING")
+            .map(|v| v.to_lowercase() == "true" || v == "1")
+            .unwrap_or(false);
+
         let home_dir = dirs::home_dir().context("Failed to determine home directory")?;
 
         let superctrl_dir = home_dir.join(".superctrl");
@@ -34,6 +39,7 @@ impl Config {
             learning_enabled,
             learning_db_path,
             system_prompt_path,
+            disable_clipboard_monitoring,
         })
     }
 }

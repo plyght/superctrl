@@ -24,3 +24,4 @@ rusqlite = { version = "0.38", features = ["bundled", "serde_json", "chrono"] }
 rdev = "0.5"
 arboard = "3.2"
 dirs = "5.0"
+notify-rust = "4.11"
