@@ -17,6 +17,19 @@ pub enum Commands {
     Daemon,
     Status,
     Stop,
+    Learn {
+        #[command(subcommand)]
+        action: LearnAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LearnAction {
+    Start,
+    Stop,
+    Status,
+    Finish,
+    Clear,
 }
 
 impl Cli {
@@ -30,6 +43,18 @@ impl Cli {
 
     pub fn is_stop_command(&self) -> bool {
         matches!(self.command, Some(Commands::Stop))
+    }
+
+    pub fn is_learn_command(&self) -> bool {
+        matches!(self.command, Some(Commands::Learn { .. }))
+    }
+
+    pub fn get_learn_action(&self) -> Option<&LearnAction> {
+        if let Some(Commands::Learn { action }) = &self.command {
+            Some(action)
+        } else {
+            None
+        }
     }
 
     pub fn get_execute_command(&self) -> Option<&String> {
@@ -55,6 +80,33 @@ pub async fn handle_cli_command(cli: &Cli) -> Result<()> {
             println!("Emergency stop signal sent");
             Ok(())
         }
+        Some(Commands::Learn { action }) => match action {
+            LearnAction::Start => {
+                crate::ipc::send_learn_start_command().await?;
+                println!("Learning mode started");
+                Ok(())
+            }
+            LearnAction::Stop => {
+                crate::ipc::send_learn_stop_command().await?;
+                println!("Learning mode stopped");
+                Ok(())
+            }
+            LearnAction::Status => {
+                let status = crate::ipc::send_learn_status_command().await?;
+                println!("{}", status);
+                Ok(())
+            }
+            LearnAction::Finish => {
+                crate::ipc::send_learn_finish_command().await?;
+                println!("Learning session finished");
+                Ok(())
+            }
+            LearnAction::Clear => {
+                crate::ipc::send_learn_clear_command().await?;
+                println!("Learning history cleared");
+                Ok(())
+            }
+        },
         None => Ok(()),
     }
 }
