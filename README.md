@@ -24,7 +24,7 @@ Say "Computer, open Safari and navigate to github.com" and watch it happen.
 ### Prerequisites
 
 - [Superwhisper](https://superwhisper.com) - Voice transcription for macOS
-- [macrowhisper](https://github.com/plyght/macrowhisper) - Command routing for Superwhisper
+- [macrowhisper](https://github.com/ognistik/macrowhisper) - Command routing for Superwhisper
 - OpenAI API key with Computer Use API access
 - Rust toolchain (for building from source)
 
