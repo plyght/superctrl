@@ -1,34 +1,22 @@
-# Superctrl
+# superctrl
 
-AI-powered computer automation for macOS via natural language voice commands. Superctrl runs as a menu bar daemon, leveraging OpenAI's Computer Use API to understand and execute complex desktop tasks through vision and action.
+Voice-controlled macOS automation powered by Anthropic's Computer Use API. Speak natural language commands to control your computer through a persistent menu bar daemon.
 
 ## Overview
 
-Superctrl bridges human intent and machine execution by providing an intelligent automation layer for macOS. Through voice commands captured by Superwhisper and routed via macrowhisper, it captures screenshots, interprets the desktop state, and performs precise mouse and keyboard actions to complete tasks autonomously.
-
-Say "Computer, open Safari and navigate to github.com" and watch it happen.
+superctrl bridges voice input and computer automation by integrating Superwhisper voice transcription with Anthropic's Claude Computer Use API. The system runs as a macOS menu bar application, listening for voice commands via macrowhisper trigger patterns and executing them through Claude's vision-enabled automation capabilities.
 
 ## Features
 
-- **Voice Command Integration**: Seamless integration with Superwhisper via macrowhisper for hands-free control
-- **Computer Use API**: OpenAI GPT-4o integration with vision and tool calling for intelligent desktop automation
-- **Menu Bar Daemon**: Persistent background service with status monitoring and action history
-- **Emergency Stop**: System-wide hotkey (⌘⇧⎋) to immediately halt any running automation
-- **IPC Command Server**: Unix socket interface for external command execution and integration
-- **Native Automation**: Cross-platform mouse and keyboard control via enigo
-- **Screen Capture**: High-fidelity screenshot capture and encoding with xcap
-- **Safety Controls**: Iteration limits, trust mode, and stop flags prevent runaway execution
+- **Voice Control**: Natural language commands via macrowhisper integration ("Computer, open Safari and go to github.com")
+- **Computer Use API**: Full Anthropic Claude Computer Use implementation with screenshot analysis and action execution
+- **Menu Bar Interface**: Real-time status, action history, and task control via native macOS menu bar
+- **Emergency Stop**: Global hotkey (Command+Shift+Escape) to halt any running automation
+- **Daemon Architecture**: IPC-based daemon with Unix socket communication for reliable background operation
+- **Learning System**: Optional keyboard and clipboard monitoring for behavior analysis
+- **Cross-Interface**: CLI, voice, and GUI control methods
 
 ## Installation
-
-### Prerequisites
-
-- [Superwhisper](https://superwhisper.com) - Voice transcription for macOS
-- [macrowhisper](https://github.com/ognistik/macrowhisper) - Command routing for Superwhisper
-- OpenAI API key with Computer Use API access
-- Rust toolchain (for building from source)
-
-### Quick Install
 
 ```bash
 git clone https://github.com/yourusername/superctrl.git
@@ -36,170 +24,187 @@ cd superctrl
 ./install.sh
 ```
 
-This will build the binary, install it to `/usr/local/bin`, configure macrowhisper integration, and set up the launch agent.
+The installation script will:
+- Build the release binary
+- Install to `/usr/local/bin/superctrl`
+- Configure macrowhisper action
+- Set up launchd daemon for automatic startup
 
 ### Manual Installation
 
 ```bash
-# Build from source
 cargo build --release
 sudo cp target/release/superctrl /usr/local/bin/
+sudo chmod +x /usr/local/bin/superctrl
 
-# Configure macrowhisper integration
 ./install-macrowhisper-action.sh
 
-# Set up launch agent
 cp superctrl.plist ~/Library/LaunchAgents/com.superctrl.daemon.plist
-# Edit plist to add your OPENAI_API_KEY
-nano ~/Library/LaunchAgents/com.superctrl.daemon.plist
 launchctl load ~/Library/LaunchAgents/com.superctrl.daemon.plist
 ```
+
+Edit the plist file to add your Anthropic API key before loading.
 
 ## Usage
 
 ### Voice Commands
 
-Trigger automation using one of these voice patterns with Superwhisper:
+Trigger patterns (configurable in macrowhisper):
 
-- "Computer, [command]"
-- "Automate [command]"
-- "Control [command]"
-- "Do this: [command]"
+```
+Computer, [command]
+Automate [command]
+Control [command]
+Do this: [command]
+```
 
-**Examples:**
+Examples:
 
-- "Computer, open Safari and go to github.com"
-- "Automate creating a new folder called Projects"
-- "Control moving all PDFs to Downloads"
-- "Do this: take a screenshot and save it to Desktop"
+```
+"Computer, open Safari and navigate to github.com"
+"Automate taking a screenshot and saving to Desktop"
+"Control moving all PDFs from Downloads to Documents"
+```
 
-### CLI Commands
+### CLI
 
 ```bash
-# Start daemon (menu bar)
-superctrl
-
-# Check daemon status
+superctrl --execute "open Terminal and run 'git status'"
 superctrl status
-
-# Execute command directly via IPC
-superctrl execute "Open Safari and navigate to github.com"
-
-# Stop daemon
 superctrl stop
 ```
 
 ### Menu Bar
 
-The menu bar interface shows real-time status (Idle/Working) and maintains history of the five most recent actions. Use ⌘⇧⎋ to emergency stop any task.
+Click the menu bar icon to:
+- View current status and recent action history
+- Stop running tasks
+- Open preferences
+- Quit the application
 
-## Voice Integration Architecture
+### Emergency Stop
 
-```
-User speaks → Superwhisper transcribes → macrowhisper detects trigger pattern
-                                               ↓
-                                     superctrl --execute "command"
-                                               ↓
-                                     Unix socket IPC → Daemon
-                                               ↓
-                                     Computer Use API execution
-                                               ↓
-                                     Result shown in menu bar
-```
-
-Superwhisper captures your voice and transcribes it in real-time. macrowhisper monitors the transcription for trigger patterns ("Computer", "Automate", etc.) and routes matching commands to superctrl via the `--execute` flag. Superctrl then uses OpenAI's Computer Use API to understand and execute the task.
+Press Command+Shift+Escape at any time to immediately halt execution.
 
 ## Configuration
 
-### Launch Agent
-
-Superctrl can be configured as a launch agent for automatic startup:
+### Environment Variables
 
 ```bash
-# Copy plist to LaunchAgents
-cp superctrl.plist ~/Library/LaunchAgents/com.superctrl.daemon.plist
-
-# Edit to add your API key
-nano ~/Library/LaunchAgents/com.superctrl.daemon.plist
-
-# Load service
-launchctl load ~/Library/LaunchAgents/com.superctrl.daemon.plist
+export ANTHROPIC_API_KEY=your-key-here
+export SUPERCTRL_LEARNING_ENABLED=true
+export SUPERCTRL_LEARNING_DB_PATH=~/.config/superctrl/learning.db
+export SUPERCTRL_SYSTEM_PROMPT_PATH=~/.config/superctrl/system_prompt.txt
 ```
 
-### Voice Trigger Patterns
+### macrowhisper Trigger Patterns
 
-Customize trigger phrases by editing `~/.config/macrowhisper/macrowhisper.json`:
+Edit `~/.config/macrowhisper/macrowhisper.json`:
 
 ```json
 {
   "scriptsShell": {
     "superctrl": {
       "action": "/usr/local/bin/superctrl --execute '{{swResult}}'",
-      "triggerVoice": "computer|automate|control|do this|jarvis"
+      "triggerVoice": "computer|automate|control|do this"
     }
   }
 }
 ```
 
-Add or modify trigger phrases as needed. Restart macrowhisper for changes to take effect.
-
-### Display Settings
-
-Modify `computer_use.rs` to adjust screenshot resolution (default: 1920x1080):
-
-```rust
-let mut agent = ComputerUseAgent::new(api_key, stop_flag)?
-    .with_display_size(2560, 1440)
-    .with_full_trust_mode(true);
-```
-
-### Safety Configuration
-
-- **Full Trust Mode**: Auto-acknowledges safety checks (enabled by default)
-- **Iteration Limit**: Maximum API loop cycles before timeout (default: 50)
-- **Emergency Stop**: Always available via hotkey or IPC command
-
 ## Architecture
 
-- `main.rs`: Application entry point and daemon orchestration
-- `menu_bar.rs`: macOS menu bar interface and tray icon management
-- `computer_use.rs`: OpenAI Computer Use API client and agent loop
-- `screenshot.rs`: Screen capture with xcap and base64 encoding
-- `automation.rs`: Mouse/keyboard automation via enigo with action parsing
-- `ipc.rs`: Unix socket server for command execution
-- `hotkey.rs`: Emergency stop hotkey registration and handling
-- `gui.rs`: Shared state management and status tracking
-- `preferences.rs`: Configuration UI and settings
+- `computer_use.rs`: Anthropic Computer Use API loop with claude-sonnet-4-5
+- `automation.rs`: macOS action execution via enigo (mouse, keyboard, scroll)
+- `screenshot.rs`: Screen capture with xcap and automatic scaling
+- `menu_bar.rs`: Native menu bar implementation using tray-icon
+- `gui.rs`: Shared state management with Arc<Mutex<GuiState>>
+- `hotkey.rs`: Global keyboard shortcut handling via global-hotkey
+- `ipc.rs`: Unix socket server for daemon communication
+- `learning.rs`: User behavior collection with SQLite storage
+- `cli.rs`: Command-line interface using clap
 
-### Computer Use Flow
+## API Details
 
-1. Capture initial screenshot of desktop
-2. Send command + image to OpenAI API with computer_use_preview tool
-3. Parse tool calls from response (click, type, keypress, scroll, wait)
-4. Execute actions via native automation
-5. Capture new screenshot showing result
-6. Send action result + new screenshot back to API
-7. Repeat until task complete or max iterations reached
+- **Model**: claude-sonnet-4-5
+- **API**: Anthropic Messages API with computer-use-2025-01-24 beta
+- **Tools**: computer_20250124 tool version
+- **Display**: Automatic screen resolution detection with dynamic scaling
+- **Actions**: left_click, right_click, type, key, mouse_move, scroll, screenshot, double_click, triple_click, left_click_drag
+- **Safety**: 50 iteration limit, atomic stop flag, full trust mode toggle
 
 ## Development
 
 ```bash
 cargo build
 cargo test
-cargo clippy -- -D warnings
-cargo fmt --check
+cargo clippy
+cargo fmt
 ```
 
-Requires Rust 1.70+. Key dependencies: iced, tokio, async-openai, xcap, enigo, tray-icon, global-hotkey.
+Requires Rust 1.70+. Key dependencies: iced, tokio, reqwest, xcap, enigo, global-hotkey, tray-icon, rusqlite, rdev, arboard.
 
-### Examples
+### Running Locally
+
+Terminal 1 (daemon):
+```bash
+ANTHROPIC_API_KEY=your-key cargo run
+```
+
+Terminal 2 (client):
+```bash
+cargo run -- --execute "test command"
+```
+
+### Testing IPC
 
 ```bash
-# Computer Use API example
-OPENAI_API_KEY=your-key cargo run --example computer_use_example
+echo '{"Execute":{"command":"test"}}' | nc -U /tmp/superctrl.sock
+```
 
-# Emergency stop example
-cargo run --example emergency_stop_example
+## Requirements
+
+- macOS (10.15+)
+- Rust toolchain
+- Superwhisper with macrowhisper installed
+- Anthropic API key with Computer Use beta access
+- Accessibility permissions for keyboard shortcuts and automation
+
+## Security
+
+- Socket permissions restricted to owner only (0600)
+- API key loaded from environment, never hardcoded
+- No credential logging
+- Learning data stored locally with configurable opt-out
+- Command validation before execution
+
+## Troubleshooting
+
+### Check Daemon Status
+
+```bash
+superctrl status
+```
+
+### View Logs
+
+```bash
+tail -f ~/Library/Logs/superctrl.log
+tail -f ~/Library/Logs/superctrl.error.log
+```
+
+### Restart Daemon
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.superctrl.daemon.plist
+launchctl load ~/Library/LaunchAgents/com.superctrl.daemon.plist
+```
+
+### Verify macrowhisper Configuration
+
+```bash
+macrowhisper --service-status
+cat ~/.config/macrowhisper/macrowhisper.json | grep -A 3 superctrl
 ```
 
 ## License
