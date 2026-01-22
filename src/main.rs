@@ -64,9 +64,14 @@ fn main() -> Result<()> {
     let state = create_shared_state();
 
     let learning_stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let learning_collector = Arc::new(Mutex::new(
-        LearningCollector::with_path(config.learning_db_path.clone(), learning_stop_flag.clone())?
-    ));
+    let learning_collector = if config.learning_enabled {
+        Some(Arc::new(Mutex::new(
+            LearningCollector::with_path(config.learning_db_path.clone(), learning_stop_flag.clone())?
+        )))
+    } else {
+        tracing::info!("Learning feature is disabled via SUPERCTRL_LEARNING_ENABLED");
+        None
+    };
 
     let rt = tokio::runtime::Runtime::new()?;
     let _rt_guard = rt.enter();
@@ -161,35 +166,74 @@ fn main() -> Result<()> {
                                 let learning_collector_for_start = learning_collector_clone.clone();
                                 let on_learn_start = move || {
                                     tracing::info!("Received learn start command via IPC");
-                                    let mut collector = learning_collector_for_start.lock().unwrap();
-                                    collector.start()
+                                    match learning_collector_for_start.as_ref() {
+                                        Some(collector) => {
+                                            let mut c = collector.lock().unwrap();
+                                            c.start()
+                                        }
+                                        None => anyhow::bail!("Learning feature is disabled"),
+                                    }
                                 };
 
                                 let learning_collector_for_stop = learning_collector_clone.clone();
                                 let on_learn_stop = move || {
                                     tracing::info!("Received learn stop command via IPC");
-                                    let mut collector = learning_collector_for_stop.lock().unwrap();
-                                    collector.stop()
+                                    match learning_collector_for_stop.as_ref() {
+                                        Some(collector) => {
+                                            let mut c = collector.lock().unwrap();
+                                            c.stop()
+                                        }
+                                        None => anyhow::bail!("Learning feature is disabled"),
+                                    }
+                                };
+
+                                let learning_collector_for_status = learning_collector_clone.clone();
+                                let on_learn_status = move || {
+                                    tracing::info!("Received learn status command via IPC");
+                                    match learning_collector_for_status.as_ref() {
+                                        Some(collector) => {
+                                            let c = collector.lock().unwrap();
+                                            let state = c.state();
+                                            let is_active = state.is_active();
+                                            let status_text = if is_active {
+                                                "Learning is active"
+                                            } else {
+                                                "Learning is stopped"
+                                            };
+                                            Ok(status_text.to_string())
+                                        }
+                                        None => Ok("Learning feature is disabled".to_string()),
+                                    }
                                 };
 
                                 let learning_collector_for_finish = learning_collector_clone.clone();
                                 let api_key_for_finish = api_key_clone.clone();
                                 let system_prompt_path_for_finish = system_prompt_path_clone.clone();
+                                let handle = tokio::runtime::Handle::current();
                                 let on_learn_finish = move || {
                                     tracing::info!("Received learn finish command via IPC");
-                                    let collector = learning_collector_for_finish.lock().unwrap();
-                                    let rt_inner = tokio::runtime::Runtime::new().unwrap();
-                                    let path = system_prompt_path_for_finish.clone();
-                                    rt_inner.block_on(async {
-                                        collector.generate_system_prompt(&api_key_for_finish, path).await
-                                    }).map(|_| ())
+                                    match learning_collector_for_finish.as_ref() {
+                                        Some(collector) => {
+                                            let c = collector.lock().unwrap();
+                                            let path = system_prompt_path_for_finish.clone();
+                                            handle.block_on(async {
+                                                c.generate_system_prompt(&api_key_for_finish, path).await
+                                            }).map(|_| ())
+                                        }
+                                        None => anyhow::bail!("Learning feature is disabled"),
+                                    }
                                 };
 
                                 let learning_collector_for_clear = learning_collector_clone.clone();
                                 let on_learn_clear = move || {
                                     tracing::info!("Received learn clear command via IPC");
-                                    let mut collector = learning_collector_for_clear.lock().unwrap();
-                                    collector.clear_database()
+                                    match learning_collector_for_clear.as_ref() {
+                                        Some(collector) => {
+                                            let mut c = collector.lock().unwrap();
+                                            c.clear_database()
+                                        }
+                                        None => anyhow::bail!("Learning feature is disabled"),
+                                    }
                                 };
 
                                 if let Err(e) =
@@ -199,6 +243,7 @@ fn main() -> Result<()> {
                                         on_stop,
                                         on_learn_start,
                                         on_learn_stop,
+                                        on_learn_status,
                                         on_learn_finish,
                                         on_learn_clear,
                                     )

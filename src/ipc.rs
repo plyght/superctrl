@@ -83,6 +83,7 @@ impl IpcServer {
         on_stop: impl Fn() -> Result<()>,
         on_learn_start: impl Fn() -> Result<()>,
         on_learn_stop: impl Fn() -> Result<()>,
+        on_learn_status: impl Fn() -> Result<String>,
         on_learn_finish: impl Fn() -> Result<()>,
         on_learn_clear: impl Fn() -> Result<()>,
     ) -> Result<()> {
@@ -94,7 +95,7 @@ impl IpcServer {
         }
 
         let request = String::from_utf8_lossy(&buffer[..n]);
-        let response = Self::process_command(&request, on_execute, on_stop, on_learn_start, on_learn_stop, on_learn_finish, on_learn_clear);
+        let response = Self::process_command(&request, on_execute, on_stop, on_learn_start, on_learn_stop, on_learn_status, on_learn_finish, on_learn_clear);
 
         let response_json = serde_json::to_string(&response)?;
         stream.write_all(response_json.as_bytes()).await?;
@@ -109,6 +110,7 @@ impl IpcServer {
         on_stop: impl Fn() -> Result<()>,
         on_learn_start: impl Fn() -> Result<()>,
         on_learn_stop: impl Fn() -> Result<()>,
+        on_learn_status: impl Fn() -> Result<String>,
         on_learn_finish: impl Fn() -> Result<()>,
         on_learn_clear: impl Fn() -> Result<()>,
     ) -> IpcResponse {
@@ -132,7 +134,10 @@ impl IpcServer {
                 Ok(_) => IpcResponse::success("Learning mode stopped"),
                 Err(e) => IpcResponse::error(format!("Failed to stop learning: {}", e)),
             },
-            Ok(IpcCommand::LearnStatus) => IpcResponse::success("Learning status: Not implemented yet"),
+            Ok(IpcCommand::LearnStatus) => match on_learn_status() {
+                Ok(status) => IpcResponse::success(status),
+                Err(e) => IpcResponse::error(format!("Failed to get learning status: {}", e)),
+            },
             Ok(IpcCommand::LearnFinish) => match on_learn_finish() {
                 Ok(_) => IpcResponse::success("Learning session finished"),
                 Err(e) => IpcResponse::error(format!("Failed to finish learning: {}", e)),

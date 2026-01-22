@@ -337,33 +337,41 @@ impl LearningCollector {
     }
 
     fn keyboard_monitor(database: Arc<Mutex<LearningDatabase>>, stop_flag: Arc<AtomicBool>) {
-        let mut modifiers = ModifierState::default();
+        let modifiers = Arc::new(Mutex::new(ModifierState::default()));
+
+        let modifiers_for_callback = modifiers.clone();
+        let database_for_callback = database.clone();
+        let stop_flag_for_callback = stop_flag.clone();
 
         let callback = move |event: rdev::Event| {
-            if stop_flag.load(Ordering::Acquire) {
+            if stop_flag_for_callback.load(Ordering::Acquire) {
                 return;
             }
 
             match event.event_type {
                 rdev::EventType::KeyPress(key) => {
-                    modifiers.update_key_down(key);
+                    if let Ok(mut mods) = modifiers_for_callback.lock() {
+                        mods.update_key_down(key);
 
-                    if let Some(key_combo) = modifiers.get_combination(&key) {
-                        let event = Event::KeyPress {
-                            key: key_combo,
-                            timestamp: Local::now(),
-                            app_name: None,
-                        };
+                        if let Some(key_combo) = mods.get_combination(&key) {
+                            let event = Event::KeyPress {
+                                key: key_combo,
+                                timestamp: Local::now(),
+                                app_name: None,
+                            };
 
-                        if let Ok(mut db) = database.lock() {
-                            if let Err(e) = db.insert_event(&event) {
-                                tracing::error!("Failed to insert keyboard event: {}", e);
+                            if let Ok(mut db) = database_for_callback.lock() {
+                                if let Err(e) = db.insert_event(&event) {
+                                    tracing::error!("Failed to insert keyboard event: {}", e);
+                                }
                             }
                         }
                     }
                 }
                 rdev::EventType::KeyRelease(key) => {
-                    modifiers.update_key_up(key);
+                    if let Ok(mut mods) = modifiers_for_callback.lock() {
+                        mods.update_key_up(key);
+                    }
                 }
                 _ => {}
             }
@@ -372,12 +380,11 @@ impl LearningCollector {
         if let Err(e) = rdev::listen(callback) {
             tracing::error!("Keyboard monitoring error: {:?}", e);
         }
+        tracing::warn!("Keyboard monitor thread exited (rdev::listen() terminated)");
     }
 
     fn clipboard_monitor(database: Arc<Mutex<LearningDatabase>>, stop_flag: Arc<AtomicBool>) {
-        use clipboard::ClipboardProvider;
-
-        let mut ctx = match clipboard::ClipboardContext::new() {
+        let mut ctx = match arboard::Clipboard::new() {
             Ok(ctx) => ctx,
             Err(e) => {
                 tracing::error!("Failed to initialize clipboard context: {}", e);
@@ -388,34 +395,38 @@ impl LearningCollector {
         let mut last_content = String::new();
 
         while !stop_flag.load(Ordering::Acquire) {
-            if let Ok(content) = ctx.get_contents() {
-                if content != last_content && !content.is_empty() {
-                    let content_type = if content.starts_with("data:image") {
-                        "image"
-                    } else {
-                        "text"
-                    };
+            match ctx.get_text() {
+                Ok(content) => {
+                    if content != last_content && !content.is_empty() {
+                        let content_type = "text";
 
-                    let content_preview = if content.len() > 50 {
-                        format!("{}... ({} chars)", &content[..50], content.len())
-                    } else {
-                        format!("{} ({} chars)", content, content.len())
-                    };
+                        let content_preview = if content.len() > 50 {
+                            let preview: String = content.chars().take(50).collect();
+                            format!("{}... ({} chars)", preview, content.len())
+                        } else {
+                            format!("{} ({} chars)", content, content.len())
+                        };
 
-                    let event = Event::ClipboardChange {
-                        content_type: content_type.to_string(),
-                        content_preview,
-                        timestamp: Local::now(),
-                        source_app: None,
-                    };
+                        let event = Event::ClipboardChange {
+                            content_type: content_type.to_string(),
+                            content_preview,
+                            timestamp: Local::now(),
+                            source_app: None,
+                        };
 
-                    if let Ok(mut db) = database.lock() {
-                        if let Err(e) = db.insert_event(&event) {
-                            tracing::error!("Failed to insert clipboard event: {}", e);
+                        if let Ok(mut db) = database.lock() {
+                            if let Err(e) = db.insert_event(&event) {
+                                tracing::error!("Failed to insert clipboard event: {}", e);
+                            }
                         }
-                    }
 
-                    last_content = content;
+                        last_content = content;
+                    }
+                }
+                Err(arboard::Error::ContentNotAvailable) => {
+                }
+                Err(e) => {
+                    tracing::debug!("Clipboard read error (may be non-text): {:?}", e);
                 }
             }
 
@@ -457,7 +468,10 @@ impl LearningCollector {
             summary
         );
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .build()
+            .context("Failed to create HTTP client")?;
         
         let request_body = serde_json::json!({
             "model": "claude-sonnet-4-20250514",

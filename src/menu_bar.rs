@@ -197,6 +197,11 @@ pub enum MenuBarEvent {
 
 pub fn run_menu_bar_loop(state: SharedGuiState) -> Result<()> {
     let mut menu_bar = MenuBar::new(state.clone())?;
+    let rt_handle = tokio::runtime::Handle::try_current()
+        .unwrap_or_else(|_| {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.handle().clone()
+        });
 
     loop {
         if let Some(event) = menu_bar.handle_events() {
@@ -212,8 +217,7 @@ pub fn run_menu_bar_loop(state: SharedGuiState) -> Result<()> {
                 }
                 MenuBarEvent::LearnStart => {
                     tracing::info!("Start learning requested from menu bar");
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    if let Err(e) = rt.block_on(crate::ipc::send_learn_start_command()) {
+                    if let Err(e) = rt_handle.block_on(crate::ipc::send_learn_start_command()) {
                         tracing::error!("Failed to send learn start command: {}", e);
                     } else {
                         let mut gui_state = state.lock().unwrap();
@@ -222,8 +226,7 @@ pub fn run_menu_bar_loop(state: SharedGuiState) -> Result<()> {
                 }
                 MenuBarEvent::LearnStop => {
                     tracing::info!("Stop learning requested from menu bar");
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    if let Err(e) = rt.block_on(crate::ipc::send_learn_stop_command()) {
+                    if let Err(e) = rt_handle.block_on(crate::ipc::send_learn_stop_command()) {
                         tracing::error!("Failed to send learn stop command: {}", e);
                     } else {
                         let mut gui_state = state.lock().unwrap();
@@ -232,8 +235,7 @@ pub fn run_menu_bar_loop(state: SharedGuiState) -> Result<()> {
                 }
                 MenuBarEvent::LearnGenerate => {
                     tracing::info!("Generate system prompt requested from menu bar");
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    if let Err(e) = rt.block_on(crate::ipc::send_learn_finish_command()) {
+                    if let Err(e) = rt_handle.block_on(crate::ipc::send_learn_finish_command()) {
                         tracing::error!("Failed to send learn finish command: {}", e);
                     }
                 }
