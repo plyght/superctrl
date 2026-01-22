@@ -307,11 +307,13 @@ impl ComputerUseAgent {
     }
 
     async fn execute_computer_action(&mut self, input: &Value) -> Result<Value> {
-        let action = input["action"]
-            .as_str()
-            .context("Missing action field")?;
+        let action = input["action"].as_str().context("Missing action field")?;
 
-        tracing::info!("Executing action: {} with input: {}", action, serde_json::to_string_pretty(input).unwrap_or_default());
+        tracing::info!(
+            "Executing action: {} with input: {}",
+            action,
+            serde_json::to_string_pretty(input).unwrap_or_default()
+        );
 
         let (display_width, display_height) = self.screenshot.get_display_size();
         let scale = calculate_scale_factor(display_width, display_height);
@@ -337,13 +339,12 @@ impl ComputerUseAgent {
                 let y = (coord[1].as_f64().context("Invalid y coordinate")? * scale_back) as i32;
 
                 tracing::info!("Clicking at ({}, {})", x, y);
-                self.automation
-                    .execute_action(Action::Click {
-                        x,
-                        y,
-                        button: MouseButton::Left,
-                    })?;
-                
+                self.automation.execute_action(Action::Click {
+                    x,
+                    y,
+                    button: MouseButton::Left,
+                })?;
+
                 std::thread::sleep(std::time::Duration::from_millis(150));
 
                 let screenshot_base64 = self.screenshot.capture_screenshot()?;
@@ -363,12 +364,11 @@ impl ComputerUseAgent {
                 let x = (coord[0].as_f64().context("Invalid x coordinate")? * scale_back) as i32;
                 let y = (coord[1].as_f64().context("Invalid y coordinate")? * scale_back) as i32;
 
-                self.automation
-                    .execute_action(Action::Click {
-                        x,
-                        y,
-                        button: MouseButton::Right,
-                    })?;
+                self.automation.execute_action(Action::Click {
+                    x,
+                    y,
+                    button: MouseButton::Right,
+                })?;
 
                 let screenshot_base64 = self.screenshot.capture_screenshot()?;
                 json!([{
@@ -387,12 +387,11 @@ impl ComputerUseAgent {
                 let x = (coord[0].as_f64().context("Invalid x coordinate")? * scale_back) as i32;
                 let y = (coord[1].as_f64().context("Invalid y coordinate")? * scale_back) as i32;
 
-                self.automation
-                    .execute_action(Action::Click {
-                        x,
-                        y,
-                        button: MouseButton::Middle,
-                    })?;
+                self.automation.execute_action(Action::Click {
+                    x,
+                    y,
+                    button: MouseButton::Middle,
+                })?;
 
                 let screenshot_base64 = self.screenshot.capture_screenshot()?;
                 json!([{
@@ -458,7 +457,7 @@ impl ComputerUseAgent {
 
                 tracing::info!("Typing: {}", text);
                 self.automation.execute_action(Action::Type { text })?;
-                
+
                 std::thread::sleep(std::time::Duration::from_millis(100));
 
                 let screenshot_base64 = self.screenshot.capture_screenshot()?;
@@ -483,15 +482,20 @@ impl ComputerUseAgent {
                         .collect::<Vec<_>>()
                         .join("+")
                 } else {
-                    tracing::error!("Key action input: {}", serde_json::to_string_pretty(input).unwrap_or_default());
+                    tracing::error!(
+                        "Key action input: {}",
+                        serde_json::to_string_pretty(input).unwrap_or_default()
+                    );
                     anyhow::bail!("Missing 'key', 'text', or 'keys' field in key action input");
                 };
 
                 let keys = self.parse_key_combination(&key_str)?;
-                let is_return_or_enter = keys.iter().any(|k| k.to_lowercase() == "return" || k.to_lowercase() == "enter");
+                let is_return_or_enter = keys
+                    .iter()
+                    .any(|k| k.to_lowercase() == "return" || k.to_lowercase() == "enter");
                 tracing::info!("Pressing keys: {:?}", keys);
                 self.automation.execute_action(Action::Keypress { keys })?;
-                
+
                 let delay_ms = if is_return_or_enter { 500 } else { 100 };
                 std::thread::sleep(std::time::Duration::from_millis(delay_ms));
 
@@ -562,8 +566,10 @@ impl ComputerUseAgent {
                 let end_coord = input["end_coordinate"]
                     .as_array()
                     .context("Missing end_coordinate array")?;
-                let start_x = (start_coord[0].as_f64().context("Invalid start x")? * scale_back) as i32;
-                let start_y = (start_coord[1].as_f64().context("Invalid start y")? * scale_back) as i32;
+                let start_x =
+                    (start_coord[0].as_f64().context("Invalid start x")? * scale_back) as i32;
+                let start_y =
+                    (start_coord[1].as_f64().context("Invalid start y")? * scale_back) as i32;
                 let end_x = (end_coord[0].as_f64().context("Invalid end x")? * scale_back) as i32;
                 let end_y = (end_coord[1].as_f64().context("Invalid end y")? * scale_back) as i32;
 
@@ -598,8 +604,12 @@ impl ComputerUseAgent {
                     .unwrap_or(0.2);
                 let duration_ms = (duration_secs * 1000.0) as u64;
 
-                tracing::warn!("Wait action used ({}ms) - this is usually unnecessary", duration_ms);
-                self.automation.execute_action(Action::Wait { duration_ms })?;
+                tracing::warn!(
+                    "Wait action used ({}ms) - this is usually unnecessary",
+                    duration_ms
+                );
+                self.automation
+                    .execute_action(Action::Wait { duration_ms })?;
 
                 let screenshot_base64 = self.screenshot.capture_screenshot()?;
                 json!([{

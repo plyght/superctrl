@@ -98,7 +98,17 @@ impl IpcServer {
         }
 
         let request = String::from_utf8_lossy(&buffer[..n]);
-        let response = Self::process_command_async(&request, on_execute, on_stop, on_learn_start, on_learn_stop, on_learn_status, on_learn_finish, on_learn_clear).await;
+        let response = Self::process_command_async(
+            &request,
+            on_execute,
+            on_stop,
+            on_learn_start,
+            on_learn_stop,
+            on_learn_status,
+            on_learn_finish,
+            on_learn_clear,
+        )
+        .await;
 
         let response_json = serde_json::to_string(&response)?;
         stream.write_all(response_json.as_bytes()).await?;
@@ -114,7 +124,7 @@ impl IpcServer {
         on_learn_start: impl Fn() -> Result<()>,
         on_learn_stop: impl Fn() -> Result<()>,
         on_learn_status: impl Fn() -> Result<String>,
-        mut on_learn_finish: F,
+        on_learn_finish: F,
         on_learn_clear: impl Fn() -> Result<()>,
     ) -> IpcResponse
     where
@@ -279,9 +289,7 @@ pub fn is_daemon_running() -> bool {
 
     let rt = tokio::runtime::Runtime::new().ok();
     if let Some(rt) = rt {
-        rt.block_on(async {
-            UnixStream::connect(SOCKET_PATH).await.is_ok()
-        })
+        rt.block_on(async { UnixStream::connect(SOCKET_PATH).await.is_ok() })
     } else {
         false
     }

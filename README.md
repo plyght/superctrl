@@ -112,6 +112,25 @@ Edit `~/.config/macrowhisper/macrowhisper.json`:
 }
 ```
 
+### Fish Shell Setup
+
+Fish shell uses different syntax for environment variables:
+
+**Temporary (current session):**
+```fish
+set -x ANTHROPIC_API_KEY 'your-key-here'
+```
+
+**Permanent (add to `~/.config/fish/config.fish`):**
+```fish
+set -x ANTHROPIC_API_KEY 'your-key-here'
+```
+
+**Verify:**
+```fish
+echo $ANTHROPIC_API_KEY
+```
+
 ## Architecture
 
 - `computer_use.rs`: Anthropic Computer Use API loop with claude-sonnet-4-5
@@ -161,6 +180,23 @@ cargo run -- --execute "test command"
 ```bash
 echo '{"Execute":{"command":"test"}}' | nc -U /tmp/superctrl.sock
 ```
+
+### Testing Without Voice
+
+**Method 1: Direct CLI (simulates macrowhisper)**
+
+```bash
+./target/release/superctrl -e "Open Safari"
+./target/release/superctrl -e "Take a screenshot"
+```
+
+**Method 2: Quick Test Script**
+
+```bash
+./test_integration.sh
+```
+
+This script checks daemon status, sends a test command, and shows results.
 
 ## Requirements
 

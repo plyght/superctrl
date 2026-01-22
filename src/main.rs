@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 
 fn check_macrowhisper_service() {
     use std::process::Command;
-    
+
     if let Ok(output) = Command::new("macrowhisper")
         .arg("--service-status")
         .output()
@@ -66,9 +66,10 @@ fn main() -> Result<()> {
 
     let learning_stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let learning_collector = if config.learning_enabled {
-        Some(Arc::new(Mutex::new(
-            LearningCollector::with_path(config.learning_db_path.clone(), learning_stop_flag.clone())?
-        )))
+        Some(Arc::new(Mutex::new(LearningCollector::with_path(
+            config.learning_db_path.clone(),
+            learning_stop_flag.clone(),
+        )?)))
     } else {
         tracing::info!("Learning feature is disabled via SUPERCTRL_LEARNING_ENABLED");
         None
@@ -227,7 +228,7 @@ fn main() -> Result<()> {
                                                 let db = database.lock().unwrap();
                                                 db.aggregate_data()
                                             }?;
-                                            
+
                                             let prompt_text = format!(
                                                 "Analyze this workflow data and create a system prompt (max 2000 words) describing this user's working style, applications, patterns, and habits. Format as a system prompt for an AI assistant.\n\n{}",
                                                 summary
@@ -237,7 +238,7 @@ fn main() -> Result<()> {
                                                 .timeout(std::time::Duration::from_secs(30))
                                                 .build()
                                                 .context("Failed to create HTTP client")?;
-                                            
+
                                             let request_body = serde_json::json!({
                                                 "model": "claude-sonnet-4-20250514",
                                                 "max_tokens": 4096,
@@ -303,8 +304,8 @@ fn main() -> Result<()> {
 
                                 if let Err(e) =
                                     ipc::IpcServer::handle_connection(
-                                        stream, 
-                                        on_execute, 
+                                        stream,
+                                        on_execute,
                                         on_stop,
                                         on_learn_start,
                                         on_learn_stop,

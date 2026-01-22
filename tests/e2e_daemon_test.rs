@@ -10,7 +10,7 @@ use tokio::time::timeout;
 #[tokio::test]
 async fn test_stop_flag_interrupt() -> Result<()> {
     let stop_flag = Arc::new(AtomicBool::new(false));
-    
+
     let stop_flag_clone = stop_flag.clone();
     let task = tokio::spawn(async move {
         let mut iterations = 0;
@@ -28,7 +28,7 @@ async fn test_stop_flag_interrupt() -> Result<()> {
     stop_flag.store(true, Ordering::Relaxed);
 
     let result = timeout(Duration::from_secs(2), task).await??;
-    
+
     assert!(result < 100, "Task should have stopped early");
     assert!(result > 0, "Task should have run some iterations");
 
@@ -51,7 +51,7 @@ async fn test_real_api_call() -> Result<()> {
 
     let result = timeout(
         Duration::from_secs(30),
-        agent.execute_command("What can you see on screen? Just describe briefly.")
+        agent.execute_command("What can you see on screen? Just describe briefly."),
     )
     .await??;
 

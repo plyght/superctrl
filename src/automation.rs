@@ -5,12 +5,10 @@ use enigo::{
 use std::thread;
 use std::time::Duration;
 
-#[allow(dead_code)]
 pub struct MacAutomation {
     enigo: Enigo,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Action {
     Click {
@@ -35,7 +33,6 @@ pub enum Action {
     },
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum MouseButton {
     Left,
@@ -43,7 +40,6 @@ pub enum MouseButton {
     Middle,
 }
 
-#[allow(dead_code)]
 impl MacAutomation {
     pub fn new() -> Result<Self> {
         let enigo = Enigo::new(&EnigoSettings::default()).context("Failed to initialize Enigo")?;
@@ -91,8 +87,8 @@ impl MacAutomation {
     }
 
     fn keypress(&mut self, keys: &[String]) -> Result<()> {
-        use enigo::{Button, Key};
-        
+        use enigo::Key;
+
         if keys.is_empty() {
             return Ok(());
         }

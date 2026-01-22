@@ -348,7 +348,9 @@ impl LearningCollector {
 
         if !self.disable_clipboard_monitoring {
             tracing::warn!("⚠️  Clipboard monitoring is ENABLED. Clipboard content previews will be stored in the learning database.");
-            tracing::warn!("   To disable for privacy, set SUPERCTRL_DISABLE_CLIPBOARD_MONITORING=true");
+            tracing::warn!(
+                "   To disable for privacy, set SUPERCTRL_DISABLE_CLIPBOARD_MONITORING=true"
+            );
             let db_for_clipboard = self.database.clone();
             let stop_flag_for_clipboard = self.stop_flag.clone();
             std::thread::spawn(move || {
@@ -431,7 +433,8 @@ impl LearningCollector {
                         content.hash(&mut hasher);
                         let hash = hasher.finish();
 
-                        let content_preview = format!("[REDACTED] ({} chars, hash: {:x})", char_count, hash);
+                        let content_preview =
+                            format!("[REDACTED] ({} chars, hash: {:x})", char_count, hash);
 
                         let event = Event::ClipboardChange {
                             content_type: content_type.to_string(),
@@ -449,8 +452,7 @@ impl LearningCollector {
                         last_content = content;
                     }
                 }
-                Err(arboard::Error::ContentNotAvailable) => {
-                }
+                Err(arboard::Error::ContentNotAvailable) => {}
                 Err(e) => {
                     tracing::debug!("Clipboard read error (may be non-text): {:?}", e);
                 }
@@ -489,12 +491,16 @@ impl LearningCollector {
         self.stop_flag.load(Ordering::Acquire)
     }
 
-    pub async fn generate_system_prompt(&self, api_key: &str, system_prompt_path: PathBuf) -> Result<String> {
+    pub async fn generate_system_prompt(
+        &self,
+        api_key: &str,
+        system_prompt_path: PathBuf,
+    ) -> Result<String> {
         let summary = {
             let db = self.database.lock().unwrap();
             db.aggregate_data()?
         };
-        
+
         let prompt_text = format!(
             "Analyze this workflow data and create a system prompt (max 2000 words) describing this user's working style, applications, patterns, and habits. Format as a system prompt for an AI assistant.\n\n{}",
             summary
@@ -504,7 +510,7 @@ impl LearningCollector {
             .timeout(Duration::from_secs(30))
             .build()
             .context("Failed to create HTTP client")?;
-        
+
         let request_body = serde_json::json!({
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 4096,
@@ -545,8 +551,9 @@ impl LearningCollector {
             std::fs::create_dir_all(parent).context("Failed to create system prompt directory")?;
         }
 
-        std::fs::write(&system_prompt_path, generated_text)
-            .with_context(|| format!("Failed to write system prompt to {:?}", system_prompt_path))?;
+        std::fs::write(&system_prompt_path, generated_text).with_context(|| {
+            format!("Failed to write system prompt to {:?}", system_prompt_path)
+        })?;
 
         tracing::info!("System prompt saved to {:?}", system_prompt_path);
 
@@ -556,14 +563,14 @@ impl LearningCollector {
     pub fn clear_database(&mut self) -> Result<()> {
         let mut db = self.database.lock().unwrap();
         let conn = db.connection_mut();
-        
+
         conn.execute("DELETE FROM events", [])?;
         conn.execute("DELETE FROM sessions", [])?;
         conn.execute("DELETE FROM app_usage", [])?;
         conn.execute("DELETE FROM key_patterns", [])?;
-        
+
         tracing::info!("Learning database cleared");
-        
+
         Ok(())
     }
 }

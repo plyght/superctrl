@@ -1,5 +1,5 @@
 use iced::widget::{button, column, container, row, text, vertical_space};
-use iced::{Element, Length, Settings, Task, Color};
+use iced::{Color, Element, Length, Settings, Task};
 
 use crate::gui::SharedGuiState;
 
@@ -57,7 +57,9 @@ impl PreferencesWindow {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
                         match std::env::var("ANTHROPIC_API_KEY") {
-                            Ok(key) if !key.is_empty() => Ok("✓ Connection successful!".to_string()),
+                            Ok(key) if !key.is_empty() => {
+                                Ok("✓ Connection successful!".to_string())
+                            }
                             _ => Err("API key not set".to_string()),
                         }
                     },
@@ -73,14 +75,13 @@ impl PreferencesWindow {
                 Task::none()
             }
             PreferencesMessage::ViewLogs => {
-                let _ = std::process::Command::new("open")
-                    .arg("/tmp")
-                    .spawn();
+                let _ = std::process::Command::new("open").arg("/tmp").spawn();
                 Task::none()
             }
             PreferencesMessage::OpenConfig => {
                 if let Ok(user) = std::env::var("USER") {
-                    let config_path = format!("/Users/{}/.config/macrowhisper/macrowhisper.json", user);
+                    let config_path =
+                        format!("/Users/{}/.config/macrowhisper/macrowhisper.json", user);
                     let _ = std::process::Command::new("open")
                         .arg("-a")
                         .arg("TextEdit")
@@ -89,12 +90,10 @@ impl PreferencesWindow {
                 }
                 Task::none()
             }
-            PreferencesMessage::CheckDaemonStatus => {
-                Task::perform(
-                    async { crate::ipc::is_daemon_running() },
-                    PreferencesMessage::DaemonStatusChecked,
-                )
-            }
+            PreferencesMessage::CheckDaemonStatus => Task::perform(
+                async { crate::ipc::is_daemon_running() },
+                PreferencesMessage::DaemonStatusChecked,
+            ),
             PreferencesMessage::DaemonStatusChecked(running) => {
                 self.daemon_running = Some(running);
                 Task::none()
@@ -200,8 +199,12 @@ impl PreferencesWindow {
         let help_text = column![
             vertical_space().height(Length::Fixed(20.0)),
             text("Voice Triggers:").size(14),
-            text("  \"Computer, [command]\"  |  \"Automate [command]\"").size(12).color(Color::from_rgb(0.5, 0.5, 0.5)),
-            text("  \"Control [command]\"  |  \"Do this: [command]\"").size(12).color(Color::from_rgb(0.5, 0.5, 0.5)),
+            text("  \"Computer, [command]\"  |  \"Automate [command]\"")
+                .size(12)
+                .color(Color::from_rgb(0.5, 0.5, 0.5)),
+            text("  \"Control [command]\"  |  \"Do this: [command]\"")
+                .size(12)
+                .color(Color::from_rgb(0.5, 0.5, 0.5)),
         ];
 
         content = content.push(help_text);
