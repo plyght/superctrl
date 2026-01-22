@@ -9,7 +9,6 @@ use crate::preferences;
 
 pub struct MenuBar {
     _tray_icon: TrayIcon,
-    menu: Menu,
     status_item: MenuItem,
     recent_actions_items: Vec<MenuItem>,
     stop_item: MenuItem,
@@ -61,7 +60,6 @@ impl MenuBar {
 
         Ok(Self {
             _tray_icon: tray_icon,
-            menu,
             status_item,
             recent_actions_items,
             stop_item,

@@ -21,9 +21,12 @@ use std::sync::{
 use crate::automation::{Action, MacAutomation, MouseButton};
 use crate::screenshot::ScreenCapture;
 
+#[allow(dead_code)]
 const MODEL: &str = "gpt-4o";
+#[allow(dead_code)]
 const MAX_ITERATIONS: usize = 50;
 
+#[allow(dead_code)]
 pub struct ComputerUseAgent {
     client: Client<OpenAIConfig>,
     automation: MacAutomation,
@@ -32,6 +35,7 @@ pub struct ComputerUseAgent {
     full_trust_mode: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ComputerCall {
     action: String,
@@ -39,6 +43,7 @@ struct ComputerCall {
     params: Value,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ComputerCallOutput {
     success: bool,
@@ -47,6 +52,7 @@ struct ComputerCallOutput {
     screenshot: String,
 }
 
+#[allow(dead_code)]
 impl ComputerUseAgent {
     pub fn new(api_key: String, stop_flag: Arc<AtomicBool>) -> Result<Self> {
         let config = OpenAIConfig::new().with_api_key(api_key);

@@ -24,10 +24,6 @@ impl Cli {
         Self::parse()
     }
 
-    pub fn is_daemon_mode(&self) -> bool {
-        matches!(self.command, Some(Commands::Daemon))
-    }
-
     pub fn is_status_command(&self) -> bool {
         matches!(self.command, Some(Commands::Status))
     }

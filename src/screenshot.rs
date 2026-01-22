@@ -4,11 +4,13 @@ use image::{ImageBuffer, ImageFormat, Rgba};
 use std::io::Cursor;
 use xcap::Monitor;
 
+#[allow(dead_code)]
 pub struct ScreenCapture {
     display_width: u32,
     display_height: u32,
 }
 
+#[allow(dead_code)]
 impl ScreenCapture {
     pub fn new(display_width: u32, display_height: u32) -> Self {
         Self {

@@ -51,15 +51,6 @@ impl EmergencyStop {
         Ok(())
     }
 
-    pub fn is_stopped(&self) -> bool {
-        self.stop_flag.load(Ordering::Acquire)
-    }
-
-    pub fn reset(&self) {
-        self.stop_flag.store(false, Ordering::Release);
-        eprintln!("Emergency stop flag reset");
-    }
-
     pub fn get_stop_flag(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.stop_flag)
     }
@@ -92,8 +83,4 @@ impl Drop for EmergencyStop {
     fn drop(&mut self) {
         let _ = self.unregister_hotkey();
     }
-}
-
-pub fn get_stop_flag() -> Arc<AtomicBool> {
-    Arc::new(AtomicBool::new(false))
 }

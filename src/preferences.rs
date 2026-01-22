@@ -32,10 +32,6 @@ impl PreferencesWindow {
         )
     }
 
-    pub fn title(&self) -> String {
-        String::from("superctrl - Preferences")
-    }
-
     pub fn update(&mut self, message: PreferencesMessage) -> Task<PreferencesMessage> {
         match message {
             PreferencesMessage::TestConnection => {

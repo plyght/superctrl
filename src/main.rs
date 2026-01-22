@@ -1,10 +1,8 @@
-mod app;
 mod automation;
 mod cli;
 mod computer_use;
 mod config;
 mod gui;
-mod gui_integration;
 mod hotkey;
 mod ipc;
 mod menu_bar;
@@ -12,7 +10,6 @@ mod preferences;
 mod screenshot;
 
 use anyhow::Result;
-use tracing_subscriber;
 
 use cli::Cli;
 use config::Config;
