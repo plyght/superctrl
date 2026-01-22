@@ -188,10 +188,14 @@ pub fn run_menu_bar_loop(state: SharedGuiState) -> Result<()> {
             }
         }
 
-        menu_bar.update()?;
+        if let Err(e) = menu_bar.update() {
+            tracing::error!("Menu bar update error: {}", e);
+        }
 
         let current_state = state.lock().unwrap().app_state.clone();
-        menu_bar.update_icon(&current_state)?;
+        if let Err(e) = menu_bar.update_icon(&current_state) {
+            tracing::error!("Icon update error: {}", e);
+        }
 
         std::thread::sleep(std::time::Duration::from_millis(100));
     }

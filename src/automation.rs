@@ -91,17 +91,48 @@ impl MacAutomation {
     }
 
     fn keypress(&mut self, keys: &[String]) -> Result<()> {
+        use enigo::{Button, Key};
+        
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        let mut modifier_keys = Vec::new();
+        let mut regular_keys = Vec::new();
+
         for key_str in keys {
             let key = self.parse_key(key_str)?;
-
-            self.enigo
-                .key(key, Direction::Press)
-                .context("Failed to press key")?;
-            thread::sleep(Duration::from_millis(50));
-            self.enigo
-                .key(key, Direction::Release)
-                .context("Failed to release key")?;
+            match key {
+                Key::Shift | Key::Control | Key::Alt | Key::Meta => {
+                    modifier_keys.push(key);
+                }
+                _ => {
+                    regular_keys.push(key);
+                }
+            }
         }
+
+        for modifier in &modifier_keys {
+            self.enigo
+                .key(*modifier, Direction::Press)
+                .context("Failed to press modifier key")?;
+        }
+
+        thread::sleep(Duration::from_millis(50));
+
+        for regular_key in &regular_keys {
+            self.enigo
+                .key(*regular_key, Direction::Click)
+                .context("Failed to press regular key")?;
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        for modifier in modifier_keys.iter().rev() {
+            self.enigo
+                .key(*modifier, Direction::Release)
+                .context("Failed to release modifier key")?;
+        }
+
         Ok(())
     }
 

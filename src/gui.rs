@@ -103,6 +103,10 @@ impl GuiState {
         self.stop_flag.store(true, Ordering::Release);
         tracing::info!("Emergency stop flag set");
     }
+
+    pub fn get_stop_flag(&self) -> Arc<AtomicBool> {
+        self.stop_flag.clone()
+    }
 }
 
 pub type SharedGuiState = Arc<Mutex<GuiState>>;

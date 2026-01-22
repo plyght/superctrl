@@ -177,5 +177,16 @@ async fn send_command(command: &IpcCommand) -> Result<IpcResponse> {
 }
 
 pub fn is_daemon_running() -> bool {
-    Path::new(SOCKET_PATH).exists()
+    if !Path::new(SOCKET_PATH).exists() {
+        return false;
+    }
+
+    let rt = tokio::runtime::Runtime::new().ok();
+    if let Some(rt) = rt {
+        rt.block_on(async {
+            UnixStream::connect(SOCKET_PATH).await.is_ok()
+        })
+    } else {
+        false
+    }
 }

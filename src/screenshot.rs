@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use image::{ImageBuffer, ImageFormat, Rgba};
+use image::{ImageBuffer, Rgba};
 use std::io::Cursor;
 use xcap::Monitor;
 
@@ -47,13 +47,16 @@ impl ScreenCapture {
             rgba_image
         };
 
-        let mut png_bytes = Vec::new();
-        let mut cursor = Cursor::new(&mut png_bytes);
-        resized
-            .write_to(&mut cursor, ImageFormat::Png)
-            .context("Failed to encode PNG")?;
+        let rgb_image = image::DynamicImage::ImageRgba8(resized).to_rgb8();
 
-        Ok(STANDARD.encode(&png_bytes))
+        let mut jpeg_bytes = Vec::new();
+        let mut cursor = Cursor::new(&mut jpeg_bytes);
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 40);
+        rgb_image
+            .write_with_encoder(encoder)
+            .context("Failed to encode JPEG")?;
+
+        Ok(STANDARD.encode(&jpeg_bytes))
     }
 
     pub fn get_display_size(&self) -> (u32, u32) {
@@ -63,6 +66,6 @@ impl ScreenCapture {
 
 impl Default for ScreenCapture {
     fn default() -> Self {
-        Self::new(1920, 1080)
+        Self::new(800, 600)
     }
 }

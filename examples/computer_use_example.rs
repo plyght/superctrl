@@ -7,7 +7,7 @@ use superctrl::computer_use::ComputerUseAgent;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+    let api_key = std::env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY not set");
 
     let stop_flag = Arc::new(AtomicBool::new(false));
 

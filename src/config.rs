@@ -8,11 +8,11 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Result<Self> {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .context("OPENAI_API_KEY environment variable not set")?;
+        let api_key = std::env::var("ANTHROPIC_API_KEY")
+            .context("ANTHROPIC_API_KEY environment variable not set")?;
 
         if api_key.is_empty() {
-            anyhow::bail!("OPENAI_API_KEY environment variable is empty");
+            anyhow::bail!("ANTHROPIC_API_KEY environment variable is empty");
         }
 
         Ok(Config { api_key })

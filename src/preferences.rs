@@ -19,7 +19,7 @@ pub struct PreferencesWindow {
 
 impl PreferencesWindow {
     pub fn new(_state: SharedGuiState) -> (Self, Task<PreferencesMessage>) {
-        let api_key_set = std::env::var("OPENAI_API_KEY").is_ok();
+        let api_key_set = std::env::var("ANTHROPIC_API_KEY").is_ok();
 
         (
             Self {
@@ -42,7 +42,7 @@ impl PreferencesWindow {
                     async {
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
-                        match std::env::var("OPENAI_API_KEY") {
+                        match std::env::var("ANTHROPIC_API_KEY") {
                             Ok(key) if !key.is_empty() => Ok("Connection successful!".to_string()),
                             _ => Err("API key not set".to_string()),
                         }

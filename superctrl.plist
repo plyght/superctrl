@@ -19,7 +19,7 @@
     <string>/tmp/superctrl.error.log</string>
     <key>EnvironmentVariables</key>
     <dict>
-        <key>OPENAI_API_KEY</key>
+        <key>ANTHROPIC_API_KEY</key>
         <string>REPLACE_WITH_YOUR_API_KEY</string>
     </dict>
 </dict>
