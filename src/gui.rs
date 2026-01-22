@@ -61,6 +61,7 @@ pub struct GuiState {
     pub action_history: Vec<ActionRecord>,
     pub max_history: usize,
     pub stop_flag: Arc<AtomicBool>,
+    pub learning_enabled: bool,
 }
 
 impl Default for GuiState {
@@ -70,6 +71,7 @@ impl Default for GuiState {
             action_history: Vec::new(),
             max_history: 5,
             stop_flag: Arc::new(AtomicBool::new(false)),
+            learning_enabled: true,
         }
     }
 }
@@ -106,6 +108,14 @@ impl GuiState {
 
     pub fn get_stop_flag(&self) -> Arc<AtomicBool> {
         self.stop_flag.clone()
+    }
+
+    pub fn is_learning_enabled(&self) -> bool {
+        self.learning_enabled
+    }
+
+    pub fn set_learning_enabled(&mut self, enabled: bool) {
+        self.learning_enabled = enabled;
     }
 }
 

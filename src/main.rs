@@ -5,6 +5,7 @@ mod config;
 mod gui;
 mod hotkey;
 mod ipc;
+mod learning;
 mod menu_bar;
 mod preferences;
 mod screenshot;
@@ -15,6 +16,8 @@ use cli::Cli;
 use config::Config;
 use gui::create_shared_state;
 use hotkey::EmergencyStop;
+use learning::LearningCollector;
+use std::sync::{Arc, Mutex};
 
 fn check_macrowhisper_service() {
     use std::process::Command;
@@ -60,11 +63,18 @@ fn main() -> Result<()> {
 
     let state = create_shared_state();
 
+    let learning_stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let learning_collector = Arc::new(Mutex::new(
+        LearningCollector::with_path(config.learning_db_path.clone(), learning_stop_flag.clone())?
+    ));
+
     let rt = tokio::runtime::Runtime::new()?;
     let _rt_guard = rt.enter();
 
     let ipc_state = state.clone();
     let api_key = config.api_key.clone();
+    let learning_collector_for_ipc = learning_collector.clone();
+    let system_prompt_path = config.system_prompt_path.clone();
     rt.spawn(async move {
         match ipc::IpcServer::new().await {
             Ok(ipc_server) => {
@@ -74,6 +84,8 @@ fn main() -> Result<()> {
                         Ok(stream) => {
                             let state_clone = ipc_state.clone();
                             let api_key_clone = api_key.clone();
+                            let learning_collector_clone = learning_collector_for_ipc.clone();
+                            let system_prompt_path_clone = system_prompt_path.clone();
                             tokio::spawn(async move {
                                 let state_for_execute = state_clone.clone();
                                 let api_key_for_execute = api_key_clone.clone();
@@ -146,8 +158,50 @@ fn main() -> Result<()> {
                                     Ok(())
                                 };
 
+                                let learning_collector_for_start = learning_collector_clone.clone();
+                                let on_learn_start = move || {
+                                    tracing::info!("Received learn start command via IPC");
+                                    let mut collector = learning_collector_for_start.lock().unwrap();
+                                    collector.start()
+                                };
+
+                                let learning_collector_for_stop = learning_collector_clone.clone();
+                                let on_learn_stop = move || {
+                                    tracing::info!("Received learn stop command via IPC");
+                                    let mut collector = learning_collector_for_stop.lock().unwrap();
+                                    collector.stop()
+                                };
+
+                                let learning_collector_for_finish = learning_collector_clone.clone();
+                                let api_key_for_finish = api_key_clone.clone();
+                                let system_prompt_path_for_finish = system_prompt_path_clone.clone();
+                                let on_learn_finish = move || {
+                                    tracing::info!("Received learn finish command via IPC");
+                                    let collector = learning_collector_for_finish.lock().unwrap();
+                                    let rt_inner = tokio::runtime::Runtime::new().unwrap();
+                                    let path = system_prompt_path_for_finish.clone();
+                                    rt_inner.block_on(async {
+                                        collector.generate_system_prompt(&api_key_for_finish, path).await
+                                    }).map(|_| ())
+                                };
+
+                                let learning_collector_for_clear = learning_collector_clone.clone();
+                                let on_learn_clear = move || {
+                                    tracing::info!("Received learn clear command via IPC");
+                                    let mut collector = learning_collector_for_clear.lock().unwrap();
+                                    collector.clear_database()
+                                };
+
                                 if let Err(e) =
-                                    ipc::IpcServer::handle_connection(stream, on_execute, on_stop)
+                                    ipc::IpcServer::handle_connection(
+                                        stream, 
+                                        on_execute, 
+                                        on_stop,
+                                        on_learn_start,
+                                        on_learn_stop,
+                                        on_learn_finish,
+                                        on_learn_clear,
+                                    )
                                         .await
                                 {
                                     tracing::error!("Error handling IPC connection: {}", e);

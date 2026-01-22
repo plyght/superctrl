@@ -12,6 +12,8 @@ pub struct MenuBar {
     status_item: MenuItem,
     recent_actions_items: Vec<MenuItem>,
     stop_item: MenuItem,
+    learning_toggle_item: MenuItem,
+    generate_prompt_item: MenuItem,
     preferences_item: MenuItem,
     quit_item: MenuItem,
     state: SharedGuiState,
@@ -44,6 +46,14 @@ impl MenuBar {
 
         menu.append(&PredefinedMenuItem::separator())?;
 
+        let learning_toggle_item = MenuItem::new("Start Learning", true, None);
+        menu.append(&learning_toggle_item)?;
+
+        let generate_prompt_item = MenuItem::new("Generate System Prompt", true, None);
+        menu.append(&generate_prompt_item)?;
+
+        menu.append(&PredefinedMenuItem::separator())?;
+
         let preferences_item = MenuItem::new("Preferences...", true, None);
         menu.append(&preferences_item)?;
 
@@ -63,6 +73,8 @@ impl MenuBar {
             status_item,
             recent_actions_items,
             stop_item,
+            learning_toggle_item,
+            generate_prompt_item,
             preferences_item,
             quit_item,
             state,
@@ -132,6 +144,13 @@ impl MenuBar {
             }
         }
 
+        let learning_enabled = state.is_learning_enabled();
+        if learning_enabled {
+            self.learning_toggle_item.set_text("Stop Learning");
+        } else {
+            self.learning_toggle_item.set_text("Start Learning");
+        }
+
         Ok(())
     }
 
@@ -139,6 +158,17 @@ impl MenuBar {
         if let Ok(event) = MenuEvent::receiver().try_recv() {
             if event.id == self.stop_item.id() {
                 return Some(MenuBarEvent::StopTask);
+            } else if event.id == self.learning_toggle_item.id() {
+                let state = self.state.lock().unwrap();
+                let learning_enabled = state.is_learning_enabled();
+                drop(state);
+                if learning_enabled {
+                    return Some(MenuBarEvent::LearnStop);
+                } else {
+                    return Some(MenuBarEvent::LearnStart);
+                }
+            } else if event.id == self.generate_prompt_item.id() {
+                return Some(MenuBarEvent::LearnGenerate);
             } else if event.id == self.preferences_item.id() {
                 return Some(MenuBarEvent::OpenPreferences);
             } else if event.id == self.quit_item.id() {
@@ -158,6 +188,9 @@ impl MenuBar {
 #[derive(Debug, Clone)]
 pub enum MenuBarEvent {
     StopTask,
+    LearnStart,
+    LearnStop,
+    LearnGenerate,
     OpenPreferences,
     Quit,
 }
@@ -176,6 +209,33 @@ pub fn run_menu_bar_loop(state: SharedGuiState) -> Result<()> {
 
                     let mut gui_state = state.lock().unwrap();
                     gui_state.update_status(AppState::Idle);
+                }
+                MenuBarEvent::LearnStart => {
+                    tracing::info!("Start learning requested from menu bar");
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    if let Err(e) = rt.block_on(crate::ipc::send_learn_start_command()) {
+                        tracing::error!("Failed to send learn start command: {}", e);
+                    } else {
+                        let mut gui_state = state.lock().unwrap();
+                        gui_state.set_learning_enabled(true);
+                    }
+                }
+                MenuBarEvent::LearnStop => {
+                    tracing::info!("Stop learning requested from menu bar");
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    if let Err(e) = rt.block_on(crate::ipc::send_learn_stop_command()) {
+                        tracing::error!("Failed to send learn stop command: {}", e);
+                    } else {
+                        let mut gui_state = state.lock().unwrap();
+                        gui_state.set_learning_enabled(false);
+                    }
+                }
+                MenuBarEvent::LearnGenerate => {
+                    tracing::info!("Generate system prompt requested from menu bar");
+                    let rt = tokio::runtime::Runtime::new().unwrap();
+                    if let Err(e) = rt.block_on(crate::ipc::send_learn_finish_command()) {
+                        tracing::error!("Failed to send learn finish command: {}", e);
+                    }
                 }
                 MenuBarEvent::OpenPreferences => {
                     tracing::info!("Open preferences requested from menu bar");
